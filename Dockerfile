@@ -1,11 +1,18 @@
-# Use the official, lightweight NGINX image
-FROM nginx:alpine
+# Use official Node.js image
+FROM node:18-alpine
 
-# Copy all your website files (HTML, CSS, JS, Images) to the NGINX public folder
-COPY . /usr/share/nginx/html
+# Set the working directory
+WORKDIR /app
 
-# Expose port 80 for web traffic
-EXPOSE 80
+# Copy package.json and install dependencies
+COPY package.json ./
+RUN npm install
 
-# Start the NGINX server
-CMD ["nginx", "-g", "daemon off;"]
+# Copy all your website files
+COPY . .
+
+# Expose port 8080 for web traffic
+EXPOSE 8080
+
+# Start the Node.js server
+CMD ["npm", "start"]

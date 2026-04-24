@@ -53,20 +53,23 @@ function isPatientCritical(p) {
 }
 
 // --- Navigation Logic & Sync Startup ---
-let isCloudInitialized = false; // Safety lock to prevent overwriting cloud with mock data
+let isCloudInitialized = false; 
 
 async function login() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-layout').style.display = 'flex';
     
-    updateSyncStatus("Connecting...");
+    updateSyncStatus("Connecting to Server...");
     
-    // 1. Download cloud data FIRST before doing anything else
     let success = await downloadFromCloud();
-    isCloudInitialized = true; // Unlock uploading
+    isCloudInitialized = true; 
     
-    // 2. Now initialize local data (it will use cloud data if it exists)
     initData(); 
+    
+    // Force upload the mock data to the server if the server is completely empty
+    if (patients.length > 0 && success) {
+        uploadToCloud();
+    }
     
     if (success) updateSyncStatus("Live 🟢");
 }
@@ -76,7 +79,7 @@ function updateSyncStatus(text) {
     if (!statusEl) {
         const sidebar = document.querySelector('.sidebar');
         if(sidebar) {
-            sidebar.insertAdjacentHTML('beforeend', `<div id="live-sync-status" style="position: absolute; bottom: 20px; left: 20px; font-size: 13px; color: #fecdd3; font-weight: 600; display: flex; align-items: center; gap: 8px;"><i class="fas fa-satellite-dish"></i> <span>${text}</span></div>`);
+            sidebar.insertAdjacentHTML('beforeend', `<div id="live-sync-status" style="position: absolute; bottom: 20px; left: 20px; font-size: 13px; color: #fecdd3; font-weight: 600; display: flex; align-items: center; gap: 8px;"><i class="fas fa-server"></i> <span>${text}</span></div>`);
         }
     } else {
         statusEl.querySelector('span').innerText = text;
@@ -116,21 +119,19 @@ function sanitizeData() {
 }
 
 function initData() {
-    // Only load mock data if the cloud was completely empty
     if (patients.length === 0 && appointments.length === 0) {
-        if (localStorage.getItem('ehr_patients_v7')) {
-            patients = JSON.parse(localStorage.getItem('ehr_patients_v7'));
+        if (localStorage.getItem('ehr_patients_v8')) {
+            patients = JSON.parse(localStorage.getItem('ehr_patients_v8'));
         } else {
             patients = [
                 { id: 'P001', name: 'Sarah Johnson', age: 34, sex: 'Female', contact: '555-1234', blood: 'O+', date: '4/15/2024', room: 'General Ward - Bed 1', doctor: 'Dr. Maria Santos', diet: 'General Diet', allergies: 'None', complaint: 'Routine Checkup', vitals: { bpSys: 115, bpDia: 75, hr: 78, temp: 37.0, spo2: 98, resp: 16, bmi: 22.5 }, record: { neuro: 'Alert', skin: 'Normal', bowel: 'Normal Active', edema: 'None', timestamp: '4/15/2024 09:30:00' } }, 
-                { id: 'P002', name: 'Michael Chen', age: 45, sex: 'Male', contact: '555-5678', blood: 'A+', date: '4/18/2024', room: 'Private Room 102', doctor: 'Dr. Juan Dela Cruz', diet: 'Low Sodium', allergies: 'Penicillin', complaint: 'Chest Pain', vitals: { bpSys: 165, bpDia: 95, hr: 105, temp: 38.2, spo2: 94, resp: 22, bmi: 26.1 }, record: { neuro: 'Lethargic', skin: 'Pale', bowel: 'Hypoactive', edema: '1+ Pitting', timestamp: '4/18/2024 14:20:15' } },
-                { id: 'P003', name: 'Emily Rodriguez', age: 28, sex: 'Female', contact: '555-3456', blood: 'B-', date: '4/10/2024', room: 'Outpatient', doctor: 'Dr. Elena Reyes', diet: 'Regular', allergies: 'Peanuts', complaint: 'Fever', vitals: { bpSys: 110, bpDia: 70, hr: 88, temp: 36.8, spo2: 99, resp: 14, bmi: 21.0 }, record: { neuro: 'Alert', skin: 'Normal', bowel: 'Normal Active', edema: 'None', timestamp: '4/10/2024 11:05:40' } }
+                { id: 'P002', name: 'Michael Chen', age: 45, sex: 'Male', contact: '555-5678', blood: 'A+', date: '4/18/2024', room: 'Private Room 102', doctor: 'Dr. Juan Dela Cruz', diet: 'Low Sodium', allergies: 'Penicillin', complaint: 'Chest Pain', vitals: { bpSys: 165, bpDia: 95, hr: 105, temp: 38.2, spo2: 94, resp: 22, bmi: 26.1 }, record: { neuro: 'Lethargic', skin: 'Pale', bowel: 'Hypoactive', edema: '1+ Pitting', timestamp: '4/18/2024 14:20:15' } }
             ];
         }
 
-        if (localStorage.getItem('ehr_appointments_v7')) { appointments = JSON.parse(localStorage.getItem('ehr_appointments_v7')); }
-        if (localStorage.getItem('ehr_labs_v7')) { labs = JSON.parse(localStorage.getItem('ehr_labs_v7')); }
-        if (localStorage.getItem('ehr_pharmacy_v7')) { pharmacy = JSON.parse(localStorage.getItem('ehr_pharmacy_v7')); }
+        if (localStorage.getItem('ehr_appointments_v8')) { appointments = JSON.parse(localStorage.getItem('ehr_appointments_v8')); }
+        if (localStorage.getItem('ehr_labs_v8')) { labs = JSON.parse(localStorage.getItem('ehr_labs_v8')); }
+        if (localStorage.getItem('ehr_pharmacy_v8')) { pharmacy = JSON.parse(localStorage.getItem('ehr_pharmacy_v8')); }
     }
 
     saveData(true); 
@@ -148,10 +149,10 @@ function refreshUI() {
 function saveData(skipUpload = false) {
     sanitizeData();
     
-    localStorage.setItem('ehr_patients_v7', JSON.stringify(patients));
-    localStorage.setItem('ehr_appointments_v7', JSON.stringify(appointments));
-    localStorage.setItem('ehr_labs_v7', JSON.stringify(labs));
-    localStorage.setItem('ehr_pharmacy_v7', JSON.stringify(pharmacy));
+    localStorage.setItem('ehr_patients_v8', JSON.stringify(patients));
+    localStorage.setItem('ehr_appointments_v8', JSON.stringify(appointments));
+    localStorage.setItem('ehr_labs_v8', JSON.stringify(labs));
+    localStorage.setItem('ehr_pharmacy_v8', JSON.stringify(pharmacy));
     
     localDataHash = generateDataHash(patients, appointments, labs, pharmacy);
     
@@ -181,9 +182,6 @@ function updateDashboards() {
     populateRecentPatientsWidget();
 }
 
-// ==========================================
-// --- FACEBOOK STYLE NOTIFICATION ENGINE ---
-// ==========================================
 function showNotifications() {
     const list = document.getElementById('notification-list');
     list.innerHTML = '';
@@ -463,7 +461,6 @@ function populateTable() {
     });
 }
 
-// --- APPOINTMENTS CRUD ---
 function openAppointmentModal() {
     document.getElementById('new-appt-name').value = '';
     document.getElementById('new-appt-type').value = 'Checkup';
@@ -502,7 +499,6 @@ function populateAppointments() {
     });
 }
 
-// --- LABS CRUD ---
 function openLabModal() {
     document.getElementById('new-lab-name').value = '';
     document.getElementById('new-lab-test').value = '';
@@ -540,7 +536,6 @@ function populateLabs() {
     });
 }
 
-// --- PHARMACY CRUD ---
 function openPharmacyModal() {
     document.getElementById('new-pharm-name').value = '';
     document.getElementById('new-pharm-med').value = '';
@@ -577,7 +572,6 @@ function populatePharmacy() {
     });
 }
 
-// --- Patient Modal & Dynamic Vitals Logic ---
 let vitalsChartInstance = null;
 
 function openModal(patientId) {
@@ -607,7 +601,6 @@ function openModal(patientId) {
     document.getElementById('modal-diet').innerText = p.diet;
     document.getElementById('modal-complaint').innerText = p.complaint;
 
-    // Apply strict normal range checks for the Vitals UI glow
     let v = p.vitals || {};
     
     let bpBad = (v.bpSys !== '-' && (v.bpSys < 90 || v.bpSys > 120)) || (v.bpDia !== '-' && (v.bpDia < 60 || v.bpDia > 80));
@@ -633,7 +626,6 @@ function openModal(patientId) {
     document.getElementById('rec-admission').innerText = p.date;
     document.getElementById('rec-timestamp').innerText = p.record.timestamp || '-';
 
-    // --- Dynamic Record Highlighting in Modal ---
     const styleAssessmentCard = (elementId, value, normalValues) => {
         const el = document.getElementById(elementId);
         if(!el) return;
@@ -666,7 +658,6 @@ function openModal(patientId) {
 
 function closeModal() { document.getElementById('patient-modal').style.display = 'none'; }
 
-// --- Patient Record Update Logic ---
 function openRecordModal() {
     if(!currentViewedPatientId) return;
     const p = patients.find(x => x.id === currentViewedPatientId);
@@ -709,7 +700,6 @@ function savePatientRecord(e) {
     switchTab('record'); 
 }
 
-// --- Vitals History Update Logic ---
 function openAddVitalsModal(recordId = null) {
     if(!currentViewedPatientId) return;
     const p = patients.find(x => x.id === currentViewedPatientId);
@@ -877,12 +867,11 @@ function populateHistoryTable(p) {
 // --- FLAWLESS REAL-TIME CLOUD SYNC ---
 // ==========================================
 
-// Changed Database Key to ensure a completely fresh start for everyone
-const CLOUD_DB_KEY = "ubstudehr_db_production_sync_v7"; 
-const CLOUD_API_URL = `https://kvs.zackumar.com/keys/${CLOUD_DB_KEY}`;
+// Now connects to YOUR private server.js instead of the public internet
+const CLOUD_API_URL = `/api/data`;
 
 async function uploadToCloud() {
-    if (!isCloudInitialized) return; // SAFEGUARD: Never upload until we've confirmed the live data first
+    if (!isCloudInitialized) return; 
 
     const payload = { patients, appointments, labs, pharmacy };
     try {
@@ -904,22 +893,14 @@ async function uploadToCloud() {
 
 async function downloadFromCloud() {
     try {
-        const response = await fetch(CLOUD_API_URL + "?_t=" + new Date().getTime(), {
-            method: 'GET',
-            headers: {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-            },
-            cache: 'no-store'
-        });
+        const response = await fetch(CLOUD_API_URL);
         
         if (!response.ok) return false;
         
         const cloudData = await response.json();
         
         if (!cloudData || typeof cloudData !== 'object') return false;
-        if (!cloudData.patients && !cloudData.appointments && !cloudData.labs && !cloudData.pharmacy) return true;
+        if (cloudData.patients.length === 0 && cloudData.appointments.length === 0) return true;
 
         let cloudHash = generateDataHash(cloudData.patients || [], cloudData.appointments || [], cloudData.labs || [], cloudData.pharmacy || []);
 
@@ -948,7 +929,6 @@ function forceCloudSync() {
     uploadToCloud();
 }
 
-// Background sync runs every 2.5 seconds
 setInterval(async () => {
     if(isCloudInitialized) {
         await downloadFromCloud();
