@@ -52,12 +52,35 @@ function isPatientCritical(p) {
     return getPatientAlerts(p.vitals, p.record).length > 0;
 }
 
-// --- Navigation Logic ---
-function login() {
+// --- Navigation Logic & Sync Startup ---
+let isCloudInitialized = false; // Safety lock to prevent overwriting cloud with mock data
+
+async function login() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-layout').style.display = 'flex';
+    
+    updateSyncStatus("Connecting...");
+    
+    // 1. Download cloud data FIRST before doing anything else
+    let success = await downloadFromCloud();
+    isCloudInitialized = true; // Unlock uploading
+    
+    // 2. Now initialize local data (it will use cloud data if it exists)
     initData(); 
-    downloadFromCloud();
+    
+    if (success) updateSyncStatus("Live 🟢");
+}
+
+function updateSyncStatus(text) {
+    let statusEl = document.getElementById('live-sync-status');
+    if (!statusEl) {
+        const sidebar = document.querySelector('.sidebar');
+        if(sidebar) {
+            sidebar.insertAdjacentHTML('beforeend', `<div id="live-sync-status" style="position: absolute; bottom: 20px; left: 20px; font-size: 13px; color: #fecdd3; font-weight: 600; display: flex; align-items: center; gap: 8px;"><i class="fas fa-satellite-dish"></i> <span>${text}</span></div>`);
+        }
+    } else {
+        statusEl.querySelector('span').innerText = text;
+    }
 }
 
 function showSection(sectionId, navElement) {
@@ -93,19 +116,22 @@ function sanitizeData() {
 }
 
 function initData() {
-    if (localStorage.getItem('ehr_patients_v4')) {
-        patients = JSON.parse(localStorage.getItem('ehr_patients_v4'));
-    } else {
-        patients = [
-            { id: 'P001', name: 'Sarah Johnson', age: 34, sex: 'Female', contact: '555-1234', blood: 'O+', date: '4/15/2024', room: 'General Ward - Bed 1', doctor: 'Dr. Maria Santos', diet: 'General Diet', allergies: 'None', complaint: 'Routine Checkup', vitals: { bpSys: 115, bpDia: 75, hr: 78, temp: 37.0, spo2: 98, resp: 16, bmi: 22.5 }, record: { neuro: 'Alert', skin: 'Normal', bowel: 'Normal Active', edema: 'None', timestamp: '4/15/2024 09:30:00' } }, 
-            { id: 'P002', name: 'Michael Chen', age: 45, sex: 'Male', contact: '555-5678', blood: 'A+', date: '4/18/2024', room: 'Private Room 102', doctor: 'Dr. Juan Dela Cruz', diet: 'Low Sodium', allergies: 'Penicillin', complaint: 'Chest Pain', vitals: { bpSys: 165, bpDia: 95, hr: 105, temp: 38.2, spo2: 94, resp: 22, bmi: 26.1 }, record: { neuro: 'Lethargic', skin: 'Pale', bowel: 'Hypoactive', edema: '1+ Pitting', timestamp: '4/18/2024 14:20:15' } },
-            { id: 'P003', name: 'Emily Rodriguez', age: 28, sex: 'Female', contact: '555-3456', blood: 'B-', date: '4/10/2024', room: 'Outpatient', doctor: 'Dr. Elena Reyes', diet: 'Regular', allergies: 'Peanuts', complaint: 'Fever', vitals: { bpSys: 110, bpDia: 70, hr: 88, temp: 36.8, spo2: 99, resp: 14, bmi: 21.0 }, record: { neuro: 'Alert', skin: 'Normal', bowel: 'Normal Active', edema: 'None', timestamp: '4/10/2024 11:05:40' } }
-        ];
-    }
+    // Only load mock data if the cloud was completely empty
+    if (patients.length === 0 && appointments.length === 0) {
+        if (localStorage.getItem('ehr_patients_v7')) {
+            patients = JSON.parse(localStorage.getItem('ehr_patients_v7'));
+        } else {
+            patients = [
+                { id: 'P001', name: 'Sarah Johnson', age: 34, sex: 'Female', contact: '555-1234', blood: 'O+', date: '4/15/2024', room: 'General Ward - Bed 1', doctor: 'Dr. Maria Santos', diet: 'General Diet', allergies: 'None', complaint: 'Routine Checkup', vitals: { bpSys: 115, bpDia: 75, hr: 78, temp: 37.0, spo2: 98, resp: 16, bmi: 22.5 }, record: { neuro: 'Alert', skin: 'Normal', bowel: 'Normal Active', edema: 'None', timestamp: '4/15/2024 09:30:00' } }, 
+                { id: 'P002', name: 'Michael Chen', age: 45, sex: 'Male', contact: '555-5678', blood: 'A+', date: '4/18/2024', room: 'Private Room 102', doctor: 'Dr. Juan Dela Cruz', diet: 'Low Sodium', allergies: 'Penicillin', complaint: 'Chest Pain', vitals: { bpSys: 165, bpDia: 95, hr: 105, temp: 38.2, spo2: 94, resp: 22, bmi: 26.1 }, record: { neuro: 'Lethargic', skin: 'Pale', bowel: 'Hypoactive', edema: '1+ Pitting', timestamp: '4/18/2024 14:20:15' } },
+                { id: 'P003', name: 'Emily Rodriguez', age: 28, sex: 'Female', contact: '555-3456', blood: 'B-', date: '4/10/2024', room: 'Outpatient', doctor: 'Dr. Elena Reyes', diet: 'Regular', allergies: 'Peanuts', complaint: 'Fever', vitals: { bpSys: 110, bpDia: 70, hr: 88, temp: 36.8, spo2: 99, resp: 14, bmi: 21.0 }, record: { neuro: 'Alert', skin: 'Normal', bowel: 'Normal Active', edema: 'None', timestamp: '4/10/2024 11:05:40' } }
+            ];
+        }
 
-    if (localStorage.getItem('ehr_appointments_v2')) { appointments = JSON.parse(localStorage.getItem('ehr_appointments_v2')); }
-    if (localStorage.getItem('ehr_labs_v2')) { labs = JSON.parse(localStorage.getItem('ehr_labs_v2')); }
-    if (localStorage.getItem('ehr_pharmacy_v2')) { pharmacy = JSON.parse(localStorage.getItem('ehr_pharmacy_v2')); }
+        if (localStorage.getItem('ehr_appointments_v7')) { appointments = JSON.parse(localStorage.getItem('ehr_appointments_v7')); }
+        if (localStorage.getItem('ehr_labs_v7')) { labs = JSON.parse(localStorage.getItem('ehr_labs_v7')); }
+        if (localStorage.getItem('ehr_pharmacy_v7')) { pharmacy = JSON.parse(localStorage.getItem('ehr_pharmacy_v7')); }
+    }
 
     saveData(true); 
 }
@@ -122,10 +148,10 @@ function refreshUI() {
 function saveData(skipUpload = false) {
     sanitizeData();
     
-    localStorage.setItem('ehr_patients_v4', JSON.stringify(patients));
-    localStorage.setItem('ehr_appointments_v2', JSON.stringify(appointments));
-    localStorage.setItem('ehr_labs_v2', JSON.stringify(labs));
-    localStorage.setItem('ehr_pharmacy_v2', JSON.stringify(pharmacy));
+    localStorage.setItem('ehr_patients_v7', JSON.stringify(patients));
+    localStorage.setItem('ehr_appointments_v7', JSON.stringify(appointments));
+    localStorage.setItem('ehr_labs_v7', JSON.stringify(labs));
+    localStorage.setItem('ehr_pharmacy_v7', JSON.stringify(pharmacy));
     
     localDataHash = generateDataHash(patients, appointments, labs, pharmacy);
     
@@ -851,13 +877,16 @@ function populateHistoryTable(p) {
 // --- FLAWLESS REAL-TIME CLOUD SYNC ---
 // ==========================================
 
-// Changed Key slightly to give you a clean database without any corrupted tests from before
-const CLOUD_DB_KEY = "ubstudehr_db_production_sync_v6"; 
+// Changed Database Key to ensure a completely fresh start for everyone
+const CLOUD_DB_KEY = "ubstudehr_db_production_sync_v7"; 
 const CLOUD_API_URL = `https://kvs.zackumar.com/keys/${CLOUD_DB_KEY}`;
 
 async function uploadToCloud() {
+    if (!isCloudInitialized) return; // SAFEGUARD: Never upload until we've confirmed the live data first
+
     const payload = { patients, appointments, labs, pharmacy };
     try {
+        updateSyncStatus("Syncing...");
         await fetch(CLOUD_API_URL, {
             method: 'POST',
             headers: { 
@@ -866,15 +895,15 @@ async function uploadToCloud() {
             },
             body: JSON.stringify(payload)
         });
+        updateSyncStatus("Live 🟢");
     } catch (e) {
         console.error("Sync Upload Failed", e);
+        updateSyncStatus("Offline 🔴");
     }
 }
 
 async function downloadFromCloud() {
     try {
-        // FIX: The URL now has '?_t=' + timestamp to force the browser to actually download instead of pausing the connection!
-        // Also added strict cache-busting headers for environments like Fly.io
         const response = await fetch(CLOUD_API_URL + "?_t=" + new Date().getTime(), {
             method: 'GET',
             headers: {
@@ -885,17 +914,15 @@ async function downloadFromCloud() {
             cache: 'no-store'
         });
         
-        if (!response.ok) return;
+        if (!response.ok) return false;
         
         const cloudData = await response.json();
         
-        // FIX: Added protection so that if the cloud data bugs out, it doesn't delete everyone's patients
-        if (!cloudData || typeof cloudData !== 'object') return;
-        if (!cloudData.patients && !cloudData.appointments && !cloudData.labs && !cloudData.pharmacy) return;
+        if (!cloudData || typeof cloudData !== 'object') return false;
+        if (!cloudData.patients && !cloudData.appointments && !cloudData.labs && !cloudData.pharmacy) return true;
 
         let cloudHash = generateDataHash(cloudData.patients || [], cloudData.appointments || [], cloudData.labs || [], cloudData.pharmacy || []);
 
-        // Only update if the cloud has different data, and it isn't completely empty
         if (cloudHash !== localDataHash && cloudHash !== generateDataHash([],[],[],[])) {
             patients = cloudData.patients || [];
             appointments = cloudData.appointments || [];
@@ -908,8 +935,12 @@ async function downloadFromCloud() {
                 openModal(currentViewedPatientId);
             }
         }
+        updateSyncStatus("Live 🟢");
+        return true;
     } catch(e) {
         console.error("Sync Download Failed", e);
+        updateSyncStatus("Offline 🔴");
+        return false;
     }
 }
 
@@ -917,4 +948,9 @@ function forceCloudSync() {
     uploadToCloud();
 }
 
-setInterval(downloadFromCloud, 3000);
+// Background sync runs every 2.5 seconds
+setInterval(async () => {
+    if(isCloudInitialized) {
+        await downloadFromCloud();
+    }
+}, 2500);
