@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EHR System</title>
+    <!-- Fonts and Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen-container">
+        <div class="login-box">
+            <div class="login-logo">
+                <img src="logo.png" alt="Logo" class="custom-logo">
+            </div>
+            <h2>ubstudEHR</h2>
+            <div class="input-group">
+                <label>Username</label>
+                <input type="text" placeholder="Enter username" value="admin">
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" placeholder="Enter password" value="password">
+            </div>
+            <button onclick="login()">Access System</button>
+        </div>
+    </div>
+
+    <!-- Main App Layout -->
+    <div id="app-layout" class="screen-container" style="display: none;">
+        
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <div class="logo">
+                <div class="logo-icon">
+                    <img src="logo.png" alt="Logo" class="custom-logo">
+                </div>
+                ubstudEHR
+            </div>
+            <ul class="nav-links">
+                <li class="active" onclick="showSection('dashboard', this)"><i class="fas fa-th-large"></i> Dashboard</li>
+                <li onclick="showSection('patient-records', this)"><i class="fas fa-users"></i> Patient Records</li>
+                <li onclick="showSection('appointments-section', this)"><i class="far fa-calendar-alt"></i> Appointments</li>
+                <li onclick="showSection('labs-section', this)"><i class="fas fa-vial"></i> Laboratory</li>
+                <li onclick="showSection('pharmacy-section', this)"><i class="fas fa-pills"></i> Pharmacy</li>
+                
+                <li style="margin-top: auto;" onclick="location.reload()"><i class="fas fa-sign-out-alt"></i> Logout</li>
+            </ul>
+            <!-- Secret Invisible Live Sync Anchor -->
+            <div class="secret-sync-btn" onclick="forceCloudSync()"></div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            
+            <!-- 1. DASHBOARD SECTION -->
+            <div id="dashboard" class="content-section active">
+                
+                <!-- Top Header -->
+                <div class="dashboard-header">
+                    <div>
+                        <h1>Dashboard Overview</h1>
+                    </div>
+                    <div class="header-controls">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" placeholder="Search...">
+                        </div>
+                        <button class="icon-btn" onclick="showNotifications()" title="View Notifications">
+                            <i class="fas fa-bell"></i>
+                            <span class="badge" id="notification-badge"></span>
+                        </button>
+                        <div class="date-display" onclick="showSection('appointments-section', document.querySelectorAll('.nav-links li')[2])" title="View Appointments Schedule">
+                            <i class="far fa-calendar"></i> <span id="current-date-display"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maroon Banner -->
+                <div class="dashboard-banner">
+                    <div class="banner-text-content">
+                        <div class="banner-date" id="banner-date-display"></div>
+                        <h1>Welcome back, Medical Team</h1>
+                        <p>Here is the overview of your clinic's activities for today.</p>
+                        <div class="banner-buttons">
+                            <button class="banner-btn banner-btn-light" onclick="showSection('appointments-section', document.querySelectorAll('.nav-links li')[2])">View Schedule</button>
+                            <button class="banner-btn banner-btn-dark" onclick="generateDailyReport()">Daily Report</button>
+                        </div>
+                    </div>
+                    <i class="fas fa-heartbeat banner-icon-bg"></i>
+                </div>
+
+                <!-- 4-Column Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon-new stat-icon-red"><i class="fas fa-user-friends"></i></div>
+                            <span class="stat-badge badge-green">+12%</span>
+                        </div>
+                        <div class="stat-number" id="dash-patient-count">0</div>
+                        <div class="stat-label">Total Patients</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon-new stat-icon-orange"><i class="far fa-calendar-alt"></i></div>
+                            <span class="stat-badge badge-green">+5%</span>
+                        </div>
+                        <div class="stat-number" id="dash-appt-count">0</div>
+                        <div class="stat-label">Appointments Today</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon-new stat-icon-green"><i class="fas fa-vial"></i></div>
+                            <span class="stat-badge badge-red">-3%</span>
+                        </div>
+                        <div class="stat-number" id="dash-lab-count">0</div>
+                        <div class="stat-label">Lab Results Pending</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon-new stat-icon-blue"><i class="fas fa-prescription-bottle-alt"></i></div>
+                            <span class="stat-badge badge-green">+8%</span>
+                        </div>
+                        <div class="stat-number" id="dash-rx-count">0</div>
+                        <div class="stat-label">Prescriptions Issued</div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions Grid -->
+                <h3 class="quick-actions-header">Quick Actions</h3>
+                <div class="quick-actions-row">
+                    <div class="qa-card qa-red" onclick="prepareNewPatient()">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Register Patient</span>
+                    </div>
+                    <div class="qa-card qa-orange" onclick="openAppointmentModal()">
+                        <i class="far fa-calendar-plus"></i>
+                        <span>Book Schedule</span>
+                    </div>
+                    <div class="qa-card qa-green" onclick="openPharmacyModal()">
+                        <i class="fas fa-pills"></i>
+                        <span>Order Meds</span>
+                    </div>
+                    <div class="qa-card qa-blue" onclick="openLabModal()">
+                        <i class="fas fa-microscope"></i>
+                        <span>New Lab Test</span>
+                    </div>
+                </div>
+
+                <!-- Recent Patients List -->
+                <div class="recent-widget">
+                    <div class="widget-header">
+                        <div class="widget-tabs">
+                            <button class="w-tab active">Recent Patients</button>
+                            <button class="w-tab">Upcoming Appointments</button>
+                        </div>
+                        <a href="#" class="view-all" onclick="showSection('patient-records', document.querySelectorAll('.nav-links li')[1])">View All</a>
+                    </div>
+                    <div class="recent-list" id="recent-patients-list">
+                        <!-- Populated by Javascript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. PATIENT RECORDS SECTION -->
+            <div id="patient-records" class="content-section">
+                <div class="section-header">
+                    <div>
+                        <h1>Patient Directory</h1>
+                    </div>
+                    <button onclick="prepareNewPatient()"><i class="fas fa-plus"></i> Add New Patient</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Patient Info</th>
+                                <th>ID No.</th>
+                                <th>Room/Ward</th>
+                                <th>Blood</th>
+                                <th>Date Admitted</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="patients-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. ADD/EDIT PATIENT FORM -->
+            <div id="new-patient" class="content-section">
+                <div class="section-header">
+                    <h1 id="form-title">Register New Patient</h1>
+                    <button class="back-btn" onclick="showSection('patient-records', document.querySelectorAll('.nav-links li')[1])">Cancel</button>
+                </div>
+                <form id="patient-form" class="patient-form" onsubmit="savePatient(event)">
+                    <input type="hidden" id="p-id">
+                    <div class="form-grid">
+                        <div class="input-group"><label>Full Name</label><input type="text" id="p-name" required></div>
+                        <div class="input-group"><label>Age</label><input type="number" id="p-age" required></div>
+                        <div class="input-group">
+                            <label>Sex</label>
+                            <select id="p-sex" required><option>Male</option><option>Female</option><option>Other</option></select>
+                        </div>
+                        <div class="input-group"><label>Date of Birth</label><input type="date" id="p-dob"></div>
+                        <div class="input-group"><label>Contact No.</label><input type="text" id="p-contact" required></div>
+                        <div class="input-group">
+                            <label>Blood Type</label>
+                            <select id="p-blood">
+                                <option>N/A</option>
+                                <option>A+</option><option>A-</option>
+                                <option>B+</option><option>B-</option>
+                                <option>O+</option><option>O-</option>
+                                <option>AB+</option><option>AB-</option>
+                            </select>
+                        </div>
+                        <div class="input-group"><label>Room / Ward</label><input type="text" id="p-room" required></div>
+                        <div class="input-group"><label>Attending Doctor</label><input type="text" id="p-doc" required></div>
+                        <div class="input-group"><label>Civil Status</label><select id="p-civil"><option>Single</option><option>Married</option><option>Widowed</option></select></div>
+                        <div class="input-group"><label>Diet Restriction</label><input type="text" id="p-diet" placeholder="e.g. Low Sodium"></div>
+                        <div class="input-group"><label>Admission Date/Time</label><input type="text" id="p-admission" required placeholder="e.g. 4/22/2026"></div>
+                        <div class="input-group"><label>Address</label><input type="text" id="p-address"></div>
+                        
+                        <div class="input-group full-width"><label>Known Allergies</label><input type="text" id="p-allergies" placeholder="e.g. Penicillin, Peanuts (Leave blank if None)"></div>
+                        <div class="input-group full-width"><label>Chief Complaint / Diagnosis</label><textarea id="p-complaint" rows="3" required></textarea></div>
+                    </div>
+                    <button type="submit" class="submit-btn">Save Patient Record</button>
+                </form>
+            </div>
+
+            <!-- 4. APPOINTMENTS SECTION -->
+            <div id="appointments-section" class="content-section">
+                <div class="section-header">
+                    <div><h1>Appointments</h1></div>
+                    <button onclick="openAppointmentModal()"><i class="fas fa-plus"></i> Add Appointment</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>Patient Name</th><th>Time / Date</th><th>Doctor</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody id="appointments-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 5. LABS SECTION -->
+            <div id="labs-section" class="content-section">
+                <div class="section-header">
+                    <div><h1>Laboratory Records</h1></div>
+                    <button onclick="openLabModal()"><i class="fas fa-plus"></i> Request Lab Test</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>Patient Name</th><th>Test Type</th><th>Date Requested</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody id="labs-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 6. PHARMACY SECTION -->
+            <div id="pharmacy-section" class="content-section">
+                <div class="section-header">
+                    <div><h1>Pharmacy Inventory</h1></div>
+                    <button onclick="openPharmacyModal()"><i class="fas fa-plus"></i> Add Prescription</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>Patient Name</th><th>Medication</th><th>Prescribed By</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody id="pharmacy-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MODERN NOTIFICATION MODAL -->
+    <div class="modal-overlay" id="notification-modal">
+        <div class="modal-content" style="width: 500px;">
+            <div class="close-modal" onclick="closeNotificationModal()"><i class="fas fa-times"></i></div>
+            <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
+                <div>
+                    <h2 style="font-size: 22px;"><i class="fas fa-bell" style="color: var(--primary); margin-right: 10px;"></i> Notifications</h2>
+                    <p style="color: var(--text-light); font-size: 14px; font-weight: 500;">Current clinic alerts and updates</p>
+                </div>
+            </div>
+            <div id="notification-list" style="margin-top: 25px; display: flex; flex-direction: column; gap: 15px;">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODERN DAILY REPORT MODAL -->
+    <div class="modal-overlay" id="report-modal">
+        <div class="modal-content" style="width: 500px;">
+            <div class="close-modal" onclick="closeReportModal()"><i class="fas fa-times"></i></div>
+            <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
+                <div>
+                    <h2 style="font-size: 22px;"><i class="fas fa-chart-pie" style="color: var(--primary); margin-right: 10px;"></i> Daily Report</h2>
+                    <p id="report-date" style="color: var(--text-light); font-size: 14px; font-weight: 500;">Date</p>
+                </div>
+            </div>
+            <div id="report-list" style="margin-top: 25px; display: flex; flex-direction: column; gap: 15px;">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- UPDATE CLINICAL RECORD MODAL -->
+    <div class="modal-overlay" id="update-record-modal" style="z-index: 1050;">
+        <div class="modal-content" style="width: 500px;">
+            <div class="close-modal" onclick="closeRecordModal()"><i class="fas fa-times"></i></div>
+            <div class="modal-header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 20px;">
+                <div>
+                    <h2 style="font-size: 22px;"><i class="fas fa-clipboard-list" style="color: var(--primary); margin-right: 10px;"></i> Update Record</h2>
+                    <p style="color: var(--text-light); font-size: 14px; font-weight: 500;">Clinical assessment details.</p>
+                </div>
+            </div>
+            <form onsubmit="savePatientRecord(event)">
+                <div class="form-grid" style="grid-template-columns: 1fr;">
+                    <div class="input-group full-width">
+                        <label>Admission Date/Time</label>
+                        <input type="text" id="ur-admission" required>
+                    </div>
+                    <div class="input-group full-width">
+                        <label>Record Timestamp (M/D/YYYY HH:MM:SS)</label>
+                        <input type="text" id="ur-timestamp" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Neurological Status</label>
+                        <select id="ur-neuro" required>
+                            <option value="-">Select...</option>
+                            <option>Alert</option>
+                            <option>Lethargic</option>
+                            <option>Obtunded</option>
+                            <option>Comatose</option>
+                            <option>Confused</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Skin Color</label>
+                        <select id="ur-skin" required>
+                            <option value="-">Select...</option>
+                            <option>Normal</option>
+                            <option>Pale</option>
+                            <option>Jaundiced</option>
+                            <option>Cyanotic</option>
+                            <option>Pinkish</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Bowel Sounds</label>
+                        <select id="ur-bowel" required>
+                            <option value="-">Select...</option>
+                            <option>Normal Active</option>
+                            <option>Hypoactive</option>
+                            <option>Hyperactive</option>
+                            <option>Absent</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Edema</label>
+                        <select id="ur-edema" required>
+                            <option value="-">Select...</option>
+                            <option>None (0)</option>
+                            <option>1+ Pitting</option>
+                            <option>2+ Pitting</option>
+                            <option>3+ Pitting</option>
+                            <option>4+ Pitting</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button type="submit" class="submit-btn" style="margin-top: 0; flex: 1;">Save Assessment</button>
+                    <button type="button" class="back-btn" style="flex: 1; padding: 15px; border-radius: var(--radius-md);" onclick="closeRecordModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ADD/EDIT VITALS MODAL -->
+    <div class="modal-overlay" id="add-vitals-modal" style="z-index: 1050;">
+        <div class="modal-content" style="width: 600px;">
+            <div class="close-modal" onclick="closeAddVitalsModal()"><i class="fas fa-times"></i></div>
+            <div class="modal-header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 20px;">
+                <div>
+                    <h2 style="font-size: 22px;"><i class="fas fa-heartbeat" style="color: var(--primary); margin-right: 10px;"></i> <span id="vitals-modal-title">Record New Vitals</span></h2>
+                    <p style="color: var(--text-light); font-size: 14px; font-weight: 500;">Update the vital signs history for this patient.</p>
+                </div>
+            </div>
+            <form id="vitals-form" onsubmit="saveVitals(event)">
+                <input type="hidden" id="v-id">
+                <div class="form-grid">
+                    <div class="input-group full-width">
+                        <label>Date Recorded</label>
+                        <input type="date" id="v-date" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Systolic BP (mmHg)</label>
+                        <input type="number" id="v-bpsys" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Diastolic BP (mmHg)</label>
+                        <input type="number" id="v-bpdia" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Heart Rate (bpm)</label>
+                        <input type="number" id="v-hr" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Temperature (°C)</label>
+                        <input type="number" step="0.1" id="v-temp" required>
+                    </div>
+                    <div class="input-group">
+                        <label>SpO2 (%)</label>
+                        <input type="number" id="v-spo2" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Respiratory Rate (br/min)</label>
+                        <input type="number" id="v-resp" required>
+                    </div>
+                    <div class="input-group full-width">
+                        <label>BMI</label>
+                        <input type="number" step="0.1" id="v-bmi" required>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button type="submit" class="submit-btn" style="margin-top: 0; flex: 1;">Save Vitals</button>
+                    <button type="button" class="back-btn" style="flex: 1; padding: 15px; border-radius: var(--radius-md);" onclick="closeAddVitalsModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ADD APPOINTMENT MODAL -->
+    <div class="modal-overlay" id="add-appointment-modal" style="z-index: 1050;">
+        <div class="modal-content" style="width: 500px;">
+            <div class="close-modal" onclick="closeAppointmentModal()"><i class="fas fa-times"></i></div>
+            <div class="modal-header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 20px;">
+                <div>
+                    <h2 style="font-size: 22px;"><i class="far fa-calendar-plus" style="color: var(--primary); margin-right: 10px;"></i> Book Schedule</h2>
+                </div>
+            </div>
+            <form onsubmit="saveAppointment(event)">
+                <div class="form-grid" style="grid-template-columns: 1fr;">
+                    <div class="input-group">
+                        <label>Patient Name</label>
+                        <input type="text" id="new-appt-name" required placeholder="Enter patient name">
+                    </div>
+                    <div class="input-group">
+                        <label>Visit Type</label>
+                        <input type="text" id="new-appt-type" required placeholder="e.g., Checkup, Surgery" value="Checkup">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button type="submit" class="submit-btn" style="margin-top: 0; flex: 1;">Save Appointment</button>
+                    <button type="button" class="back-btn" style="flex: 1; padding: 15px; border-radius: var(--radius-md);" onclick="closeAppointmentModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ADD LAB MODAL -->
+    <div class="modal-overlay" id="add-lab-modal" style="z-index: 1050;">
+        <div class="modal-content" style="width: 500px;">
+            <div class="close-modal" onclick="closeLabModal()"><i class="fas fa-times"></i></div>
+            <div class="modal-header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 20px;">
+                <div>
+                    <h2 style="font-size: 22px;"><i class="fas fa-microscope" style="color: var(--primary); margin-right: 10px;"></i> Request Lab Test</h2>
+                </div>
+            </div>
+            <form onsubmit="saveLab(event)">
+                <div class="form-grid" style="grid-template-columns: 1fr;">
+                    <div class="input-group">
+                        <label>Patient Name</label>
+                        <input type="text" id="new-lab-name" required placeholder="Enter patient name">
+                    </div>
+                    <div class="input-group">
+                        <label>Lab Test Type</label>
+                        <input type="text" id="new-lab-test" required placeholder="e.g., Blood Count, Urinalysis">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button type="submit" class="submit-btn" style="margin-top: 0; flex: 1;">Save Request</button>
+                    <button type="button" class="back-btn" style="flex: 1; padding: 15px; border-radius: var(--radius-md);" onclick="closeLabModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ADD PHARMACY MODAL -->
+    <div class="modal-overlay" id="add-pharmacy-modal" style="z-index: 1050;">
+        <div class="modal-content" style="width: 500px;">
+            <div class="close-modal" onclick="closePharmacyModal()"><i class="fas fa-times"></i></div>
+            <div class="modal-header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 20px;">
+                <div>
+                    <h2 style="font-size: 22px;"><i class="fas fa-pills" style="color: var(--primary); margin-right: 10px;"></i> Add Prescription</h2>
+                </div>
+            </div>
+            <form onsubmit="savePharmacy(event)">
+                <div class="form-grid" style="grid-template-columns: 1fr;">
+                    <div class="input-group">
+                        <label>Patient Name</label>
+                        <input type="text" id="new-pharm-name" required placeholder="Enter patient name">
+                    </div>
+                    <div class="input-group">
+                        <label>Medication & Dosage</label>
+                        <input type="text" id="new-pharm-med" required placeholder="e.g., Amoxicillin 500mg">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button type="submit" class="submit-btn" style="margin-top: 0; flex: 1;">Save Prescription</button>
+                    <button type="button" class="back-btn" style="flex: 1; padding: 15px; border-radius: var(--radius-md);" onclick="closePharmacyModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Patient Details Main Modal -->
+    <div class="modal-overlay" id="patient-modal">
+        <div class="modal-content">
+            <div class="close-modal" onclick="closeModal()"><i class="fas fa-times"></i></div>
+            
+            <div class="modal-header">
+                <div>
+                    <h2 id="modal-patient-name">Patient Name</h2>
+                    <p id="modal-patient-info">ID • Age • Sex • Room</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="header-btn btn-transfer"><i class="fas fa-exchange-alt"></i> Transfer</button>
+                    <button class="header-btn btn-discharge"><i class="fas fa-sign-out-alt"></i> Discharge</button>
+                </div>
+            </div>
+
+            <div class="modal-tabs">
+                <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+                <button class="tab-btn" onclick="switchTab('vitals')">Vitals History</button>
+                <button class="tab-btn" onclick="switchTab('record')">Patient Record</button>
+            </div>
+
+            <div id="tab-overview" class="tab-content active">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 class="tab-title" style="margin-bottom: 0;">Current Status</h3>
+                    <button class="btn-primary" onclick="openAddVitalsModal()" style="width: auto; padding: 10px 15px; font-size: 13px;"><i class="fas fa-heartbeat"></i> Update Vitals</button>
+                </div>
+                <div class="vitals-grid" id="latest-vitals-container"></div>
+                
+                <h3 class="tab-title">Medical Details</h3>
+                <div class="info-grid">
+                    <div class="info-card"><div class="card-label">Attending Doctor</div><div class="card-value" id="modal-doctor"></div></div>
+                    <div class="info-card"><div class="card-label">Chief Complaint</div><div class="card-value" id="modal-complaint"></div></div>
+                    <div class="info-card alert-card"><div class="card-label alert-text">Known Allergies</div><div class="card-value alert-text" id="modal-allergies"></div></div>
+                    <div class="info-card diet-card"><div class="diet-label">Dietary Restrictions</div><div class="diet-value" id="modal-diet"></div></div>
+                </div>
+            </div>
+
+            <div id="tab-vitals" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 class="tab-title" style="margin-bottom: 0;">Vitals Trending Graph</h3>
+                    <button class="btn-primary" onclick="openAddVitalsModal()" style="width: auto; padding: 10px 15px; font-size: 13px;"><i class="fas fa-plus"></i> Add Vitals</button>
+                </div>
+                <div class="chart-container" style="height: 300px;"><canvas id="vitalsChart"></canvas></div>
+                <table class="history-table">
+                    <thead><tr><th>Date Record</th><th>Systolic BP</th><th>Diastolic BP</th><th>Heart Rate</th><th>Actions</th></tr></thead>
+                    <tbody id="history-tbody"></tbody>
+                </table>
+            </div>
+
+            <div id="tab-record" class="tab-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 class="tab-title" style="margin-bottom: 0;">Clinical Assessment</h3>
+                    <button class="btn-primary" onclick="openRecordModal()" style="width: auto; padding: 10px 15px; font-size: 13px;"><i class="fas fa-edit"></i> Update Record</button>
+                </div>
+                <div class="info-grid">
+                    <div class="info-card" style="background: var(--primary-light); border-color: #fbcfe8;"><div class="card-label" style="color: var(--primary);">Admission Date/Time</div><div class="card-value" id="rec-admission"></div></div>
+                    <div class="info-card" style="background: #f8fafc;"><div class="card-label">Record Timestamp</div><div class="card-value" id="rec-timestamp"></div></div>
+                    <div class="info-card"><div class="card-label">Neurological Status</div><div class="card-value" id="rec-neuro"></div></div>
+                    <div class="info-card"><div class="card-label">Skin Color</div><div class="card-value" id="rec-skin"></div></div>
+                    <div class="info-card"><div class="card-label">Bowel Sounds</div><div class="card-value" id="rec-bowel"></div></div>
+                    <div class="info-card"><div class="card-label">Edema</div><div class="card-value" id="rec-edema"></div></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
