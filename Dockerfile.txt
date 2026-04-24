@@ -1,2 +1,0 @@
-FROM pierot/http-server
-COPY . .
