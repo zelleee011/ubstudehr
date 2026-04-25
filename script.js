@@ -111,7 +111,6 @@ function initData() {
         if (localStorage.getItem('ehr_patients_v9')) {
             patients = JSON.parse(localStorage.getItem('ehr_patients_v9'));
         } else {
-            // FIXED: Removed the 3 fake patients. It is now completely empty!
             patients = [];
         }
         if (localStorage.getItem('ehr_appointments_v9')) { appointments = JSON.parse(localStorage.getItem('ehr_appointments_v9')); } else { appointments = []; }
@@ -522,8 +521,26 @@ async function uploadToCloud() {
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(payload)
         });
+        
         const mergedData = await response.json();
-        if (mergedData && mergedData.patients) { localDataHash = generateDataHash(mergedData.patients, mergedData.appointments, mergedData.labs, mergedData.pharmacy); }
+        
+        // FIX: Tell the local computer to adopt the FULL list from the server instantly so nothing disappears!
+        if (mergedData && mergedData.patients) { 
+            patients = mergedData.patients;
+            appointments = mergedData.appointments;
+            labs = mergedData.labs;
+            pharmacy = mergedData.pharmacy;
+            
+            localDataHash = generateDataHash(patients, appointments, labs, pharmacy); 
+            
+            // Instantly redraw the screen to show 1000s of patients perfectly
+            try { updateDashboards(); } catch(e){}
+            try { populateTable(); } catch(e){}
+            try { populateAppointments(); } catch(e){}
+            try { populateLabs(); } catch(e){}
+            try { populatePharmacy(); } catch(e){}
+        }
+        
         updateSyncStatus("Live 🟢");
     } catch (e) { console.error("Sync Upload Failed", e); updateSyncStatus("Offline 🔴"); }
 }
@@ -535,7 +552,6 @@ async function downloadFromCloud() {
         const cloudData = await response.json();
         if (!cloudData || typeof cloudData !== 'object') return false;
         
-        // If the server physically has no records, we stay completely blank.
         if (cloudData.patients.length === 0 && cloudData.appointments.length === 0) return true;
 
         let cloudHash = generateDataHash(cloudData.patients || [], cloudData.appointments || [], cloudData.labs || [], cloudData.pharmacy || []);
