@@ -252,8 +252,10 @@ function savePatient(e) {
     const idField = document.getElementById('p-id').value;
     let initialVitals = { bpSys: '-', bpDia: '-', hr: '-', temp: '-', spo2: '-', resp: '-', bmi: '-' };
     let initialRecord = { neuro: '-', skin: '-', bowel: '-', edema: '-', timestamp: '-' };
+    
+    // FIX: Unique ID logic using Date to prevent server collision/overwriting bugs
     const newPatient = {
-        id: idField ? idField : 'P00' + (patients.length + 1),
+        id: idField ? idField : 'P' + Date.now().toString().slice(-6), 
         name: document.getElementById('p-name').value, age: document.getElementById('p-age').value, sex: document.getElementById('p-sex').value,
         dob: document.getElementById('p-dob').value, contact: document.getElementById('p-contact').value, address: document.getElementById('p-address').value,
         blood: document.getElementById('p-blood').value, room: document.getElementById('p-room').value, diet: document.getElementById('p-diet').value || 'Regular',
@@ -285,8 +287,10 @@ function editPatient(id) {
 
 async function deletePatient(id) {
     if (confirm("Are you sure you want to delete this patient? This action cannot be undone.")) {
+        isUploading = true; // Lock sync to prevent ghost restores
         await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'patients', id: id }) });
         patients = patients.filter(p => p.id !== id); saveData();
+        isUploading = false;
     }
 }
 
@@ -317,7 +321,16 @@ function saveLab(e) {
     saveData(); closeLabModal(); showSection('labs-section', document.querySelectorAll('.nav-links li')[2]);
 }
 function cycleLabStatus(id) { let lab = labs.find(l => l.id === id); if(lab.status === 'pending') lab.status = 'completed'; else if(lab.status === 'completed') lab.status = 'critical'; else lab.status = 'pending'; saveData(); }
-async function deleteLab(id) { if(confirm("Delete this lab record?")) { await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'labs', id: id }) }); labs = labs.filter(l => l.id !== id); saveData(); } }
+
+async function deleteLab(id) { 
+    if(confirm("Delete this lab record?")) { 
+        isUploading = true;
+        await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'labs', id: id }) }); 
+        labs = labs.filter(l => l.id !== id); saveData(); 
+        isUploading = false;
+    } 
+}
+
 function populateLabs() {
     const tbody = document.getElementById('labs-tbody'); if(!tbody) return; tbody.innerHTML = '';
     labs.forEach(lab => {
@@ -333,7 +346,16 @@ function savePharmacy(e) {
     saveData(); closePharmacyModal(); showSection('pharmacy-section', document.querySelectorAll('.nav-links li')[3]);
 }
 function cycleMedStatus(id) { let med = pharmacy.find(m => m.id === id); if(med.status === 'pending') med.status = 'dispensed'; else med.status = 'pending'; saveData(); }
-async function deleteMed(id) { if(confirm("Delete this pharmacy order?")) { await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'pharmacy', id: id }) }); pharmacy = pharmacy.filter(m => m.id !== id); saveData(); } }
+
+async function deleteMed(id) { 
+    if(confirm("Delete this pharmacy order?")) { 
+        isUploading = true;
+        await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'pharmacy', id: id }) }); 
+        pharmacy = pharmacy.filter(m => m.id !== id); saveData(); 
+        isUploading = false;
+    } 
+}
+
 function populatePharmacy() {
     const tbody = document.getElementById('pharmacy-tbody'); if(!tbody) return; tbody.innerHTML = '';
     pharmacy.forEach(rx => {
@@ -428,14 +450,17 @@ function saveVitals(e) {
     p.vitalsHistory.sort((a,b) => new Date(b.date) - new Date(a.date)); p.vitals = p.vitalsHistory[0]; 
     saveData(); closeAddVitalsModal(); openModal(currentViewedPatientId); switchTab(activeTabId);
 }
+
 async function deleteVitalRecord(recordId) {
     if(!confirm("Are you sure you want to delete this vital record?")) return;
+    isUploading = true;
     const p = patients.find(x => x.id === currentViewedPatientId); if(!p) return;
     await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'vital', id: recordId, patientId: currentViewedPatientId }) });
     p.vitalsHistory = p.vitalsHistory.filter(v => v.id != recordId);
     if (p.vitalsHistory.length > 0) { p.vitalsHistory.sort((a,b) => new Date(b.date) - new Date(a.date)); p.vitals = p.vitalsHistory[0]; } 
     else { p.vitals = { bpSys: '-', bpDia: '-', hr: '-', temp: '-', spo2: '-', resp: '-', bmi: '-' }; }
     saveData(); openModal(currentViewedPatientId); switchTab('vitals');
+    isUploading = false;
 }
 
 function switchTab(tabName) {
@@ -528,8 +553,13 @@ function populateHistoryTable(p) {
 
 const CLOUD_API_URL = `/api/data`;
 
+// FIX: Added a sync lock to prevent data deletion during uploads
+let isUploading = false; 
+
 async function uploadToCloud() {
     if (!isCloudInitialized) return; 
+    isUploading = true; // LOCK DATA FROM BEING OVERWRITTEN
+    
     const payload = { patients, labs, pharmacy };
     try {
         updateSyncStatus("Syncing...");
@@ -546,10 +576,16 @@ async function uploadToCloud() {
             try { updateDashboards(); } catch(e){} try { populateTable(); } catch(e){} try { populateLabs(); } catch(e){} try { populatePharmacy(); } catch(e){}
         }
         updateSyncStatus("Live 🟢");
-    } catch (e) { console.error("Sync Upload Failed", e); updateSyncStatus("Offline 🔴"); }
+    } catch (e) { 
+        console.error("Sync Upload Failed", e); updateSyncStatus("Offline 🔴"); 
+    } finally {
+        isUploading = false; // UNLOCK DATA
+    }
 }
 
 async function downloadFromCloud() {
+    if (isUploading) return false; // FIX: Prevent wiping your unsaved data while it is uploading
+    
     try {
         const response = await fetch(CLOUD_API_URL);
         if (!response.ok) return false;
