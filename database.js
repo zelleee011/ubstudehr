@@ -1,10 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 
-// This is the physical file where all data will be saved
+// The file located inside the Fly.io live server
 const dbFile = path.join(__dirname, 'records.json');
 
-// Permanent cloud backup link (protects data if Fly.io restarts the container)
+// Permanent cloud backup (Invincible against Fly.io server restarts)
 const CLOUD_URL = 'https://kvs.zackumar.com/keys/ubstudehr_permanent_records_final';
 
 let memoryData = {
@@ -14,12 +14,17 @@ let memoryData = {
     pharmacy: []
 };
 
-// 1. WAKE UP: Load data from physical file
+// 1. WAKE UP: Load data from the server's physical file
 if (fs.existsSync(dbFile)) {
-    try { memoryData = JSON.parse(fs.readFileSync(dbFile, 'utf8')); } catch(e){}
+    try { 
+        memoryData = JSON.parse(fs.readFileSync(dbFile, 'utf8')); 
+        console.log("Loaded data from local records.json");
+    } catch(e){
+        console.error("Error reading local file", e);
+    }
 }
 
-// 2. WAKE UP: Download from permanent cloud backup (in case of a Fly.io redeploy)
+// 2. WAKE UP: Aggressively download from permanent cloud backup
 async function restoreFromCloud() {
     try {
         const res = await fetch(CLOUD_URL);
@@ -27,11 +32,14 @@ async function restoreFromCloud() {
             const cloud = await res.json();
             if(cloud && cloud.patients) {
                 memoryData = cloud;
-                // Create the physical records.json file immediately
-                fs.writeFileSync(dbFile, JSON.stringify(memoryData, null, 2));
+                // Force write the cloud data into the server's records.json
+                fs.writeFileSync(dbFile, JSON.stringify(memoryData, null, 2), 'utf8');
+                console.log("Successfully restored data from Cloud Backup!");
             }
         }
-    } catch(e) {}
+    } catch(e) {
+        console.error("Cloud restore failed, using local data.");
+    }
 }
 restoreFromCloud();
 
@@ -40,19 +48,25 @@ function readData() {
     return memoryData;
 }
 
-// 4. SAVE DATA (Writes to records.json AND Cloud)
+// 4. SAVE DATA (Writes to server records.json AND Cloud)
 function writeData(data) {
     memoryData = data;
     
-    // Save locally to a physical JSON file
-    fs.writeFileSync(dbFile, JSON.stringify(memoryData, null, 2));
+    // Save to the Fly.io Server's physical hard drive
+    try {
+        fs.writeFileSync(dbFile, JSON.stringify(memoryData, null, 2), 'utf8');
+    } catch (e) {
+        console.error("Failed to write to local records.json", e);
+    }
     
-    // Backup to permanent cloud
-    fetch(CLOUD_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(memoryData)
-    }).catch(e => {});
+    // Backup to permanent cloud instantly
+    try {
+        fetch(CLOUD_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(memoryData)
+        }).catch(e => console.error("Cloud backup post failed", e));
+    } catch(e) {}
 }
 
 module.exports = { readData, writeData };
