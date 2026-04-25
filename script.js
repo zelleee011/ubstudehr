@@ -444,7 +444,7 @@ function switchTab(tabName) {
 }
 
 // -------------------------------------------------------------
-// UPDATED GRAPH RENDERER - COMBINES SYSTOLIC AND DIASTOLIC
+// UPDATED GRAPH RENDERER - BP RENAMED
 // -------------------------------------------------------------
 function renderChart(p) {
     const ctx = document.getElementById('vitalsChart').getContext('2d'); if(vitalsChartInstance) vitalsChartInstance.destroy();
@@ -460,8 +460,8 @@ function renderChart(p) {
             labels: chartData.map(r => formatLabel(r.date)), 
             datasets: [ 
                 { 
-                    label: 'Systolic BP and Diastolic BP', 
-                    data: chartData.map(r => r.bpSys), // Plot circle at Systolic level
+                    label: 'Systolic BP and Diastolic BP', // <-- THE RENAME IS HERE
+                    data: chartData.map(r => r.bpSys), 
                     borderColor: '#831843', 
                     backgroundColor: '#831843', 
                     borderWidth: 3, 
@@ -486,8 +486,8 @@ function renderChart(p) {
                             let label = context.dataset.label || '';
                             if (label) label += ': ';
                             
-                            // If they hover over Blood Pressure, grab BOTH values and combine them!
-                            if (context.dataset.label === 'Blood Pressure') {
+                            // <-- THE RENAME CONDITION MATCHES HERE
+                            if (context.dataset.label === 'Systolic BP and Diastolic BP') {
                                 let record = chartData[context.dataIndex];
                                 label += record.bpSys + '/' + record.bpDia + ' mmHg';
                             } else {
