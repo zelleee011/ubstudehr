@@ -460,7 +460,7 @@ function renderChart(p) {
             labels: chartData.map(r => formatLabel(r.date)), 
             datasets: [ 
                 { 
-                    label: 'Blood Pressure', 
+                    label: 'Systolic BP and Diastolic BP', 
                     data: chartData.map(r => r.bpSys), // Plot circle at Systolic level
                     borderColor: '#831843', 
                     backgroundColor: '#831843', 
