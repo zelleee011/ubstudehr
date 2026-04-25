@@ -23,7 +23,6 @@ function getExactTimestamp() {
 function getPatientAlerts(v, r) {
     let alerts = [];
     
-    // Check Vitals
     if (v) {
         if (v.temp !== '-' && (v.temp < 36.5 || v.temp > 37.5)) alerts.push('Abnormal Temp');
         if (v.hr !== '-' && (v.hr < 60 || v.hr > 100)) alerts.push('Abnormal Heart Rate');
@@ -37,7 +36,6 @@ function getPatientAlerts(v, r) {
         if (bpBad) alerts.push('Abnormal Blood Pressure');
     }
     
-    // Check Clinical Assessment (Record)
     if (r) {
         if (r.neuro && r.neuro !== '-' && !['Alert'].includes(r.neuro)) alerts.push('Abnormal Neuro');
         if (r.skin && r.skin !== '-' && !['Normal', 'Pinkish'].includes(r.skin)) alerts.push('Abnormal Skin Color');
@@ -66,7 +64,6 @@ async function login() {
     
     initData(); 
     
-    // Force upload the mock data to the server if the server is completely empty
     if (patients.length > 0 && success) {
         uploadToCloud();
     }
@@ -425,6 +422,7 @@ function editPatient(id) {
 function deletePatient(id) {
     if (confirm("Are you sure you want to delete this patient? This action cannot be undone.")) {
         patients = patients.filter(p => p.id !== id);
+        fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'patients', id: id }) });
         saveData();
     }
 }
@@ -484,7 +482,11 @@ function cycleApptStatus(id) {
     saveData();
 }
 function deleteAppointment(id) {
-    if(confirm("Delete this appointment?")) { appointments = appointments.filter(a => a.id !== id); saveData(); }
+    if(confirm("Delete this appointment?")) { 
+        appointments = appointments.filter(a => a.id !== id); 
+        fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'appointments', id: id }) });
+        saveData(); 
+    }
 }
 function populateAppointments() {
     const tbody = document.getElementById('appointments-tbody'); 
@@ -521,7 +523,11 @@ function cycleLabStatus(id) {
     saveData();
 }
 function deleteLab(id) {
-    if(confirm("Delete this lab record?")) { labs = labs.filter(l => l.id !== id); saveData(); }
+    if(confirm("Delete this lab record?")) { 
+        labs = labs.filter(l => l.id !== id); 
+        fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'labs', id: id }) });
+        saveData(); 
+    }
 }
 function populateLabs() {
     const tbody = document.getElementById('labs-tbody'); 
@@ -557,7 +563,11 @@ function cycleMedStatus(id) {
     saveData();
 }
 function deleteMed(id) {
-    if(confirm("Delete this pharmacy order?")) { pharmacy = pharmacy.filter(m => m.id !== id); saveData(); }
+    if(confirm("Delete this pharmacy order?")) { 
+        pharmacy = pharmacy.filter(m => m.id !== id); 
+        fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'pharmacy', id: id }) });
+        saveData(); 
+    }
 }
 function populatePharmacy() {
     const tbody = document.getElementById('pharmacy-tbody'); 
@@ -784,6 +794,7 @@ function deleteVitalRecord(recordId) {
     if(!p) return;
 
     p.vitalsHistory = p.vitalsHistory.filter(v => v.id != recordId);
+    fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'vital', id: recordId, patientId: currentViewedPatientId }) });
     
     if (p.vitalsHistory.length > 0) {
         p.vitalsHistory.sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -867,7 +878,6 @@ function populateHistoryTable(p) {
 // --- FLAWLESS REAL-TIME CLOUD SYNC ---
 // ==========================================
 
-// Now connects to YOUR private server.js instead of the public internet
 const CLOUD_API_URL = `/api/data`;
 
 async function uploadToCloud() {
