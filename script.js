@@ -407,7 +407,6 @@ function openAddVitalsModal(recordId = null) {
         document.getElementById('v-resp').value = r.resp; document.getElementById('v-bmi').value = r.bmi;
     } else {
         document.getElementById('vitals-modal-title').innerText = "Record New Vitals"; document.getElementById('v-id').value = ''; 
-        // Generates Local Datetime strictly for input fields
         let tzoffset = (new Date()).getTimezoneOffset() * 60000;
         let localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, 16);
         document.getElementById('v-date').value = localISOTime;
@@ -450,7 +449,6 @@ function renderChart(p) {
     Chart.defaults.font.family = "'Inter', sans-serif"; Chart.defaults.color = '#71717a';
     let chartData = [...p.vitalsHistory].sort((a,b) => new Date(a.date) - new Date(b.date));
     
-    // Format Display labels nicely from ISO datetime
     const formatLabel = (isoStr) => isoStr.replace('T', ' ');
 
     vitalsChartInstance = new Chart(ctx, { 
@@ -466,7 +464,11 @@ function renderChart(p) {
             ] 
         }, 
         options: { 
-            responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, 
+            responsive: true, maintainAspectRatio: false, 
+            
+            // FIX: Changed interaction from 'index' to 'nearest' to ONLY show the specific point you hover over!
+            interaction: { mode: 'nearest', intersect: true }, 
+            
             plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: {weight: 'bold'} } }, tooltip: { backgroundColor: 'rgba(30, 27, 75, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14 }, padding: 12, cornerRadius: 8 } }, 
             scales: { 
                 y: { type: 'linear', display: true, position: 'left', grid: { color: '#f1f5f9', drawBorder: false } }, 
