@@ -443,12 +443,15 @@ function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active')); document.getElementById('tab-' + tabName).classList.add('active');
 }
 
+// -------------------------------------------------------------
+// UPDATED GRAPH RENDERER - COMBINES SYSTOLIC AND DIASTOLIC
+// -------------------------------------------------------------
 function renderChart(p) {
     const ctx = document.getElementById('vitalsChart').getContext('2d'); if(vitalsChartInstance) vitalsChartInstance.destroy();
     if(!p.vitalsHistory || p.vitalsHistory.length === 0) return;
     Chart.defaults.font.family = "'Inter', sans-serif"; Chart.defaults.color = '#71717a';
-    let chartData = [...p.vitalsHistory].sort((a,b) => new Date(a.date) - new Date(b.date));
     
+    let chartData = [...p.vitalsHistory].sort((a,b) => new Date(a.date) - new Date(b.date));
     const formatLabel = (isoStr) => isoStr.replace('T', ' ');
 
     vitalsChartInstance = new Chart(ctx, { 
@@ -456,8 +459,16 @@ function renderChart(p) {
         data: { 
             labels: chartData.map(r => formatLabel(r.date)), 
             datasets: [ 
-                { label: 'Systolic BP', data: chartData.map(r => r.bpSys), borderColor: '#831843', backgroundColor: '#831843', borderWidth: 3, tension: 0.4, pointRadius: 5, yAxisID: 'y' }, 
-                { label: 'Diastolic BP', data: chartData.map(r => r.bpDia), borderColor: '#e11d48', backgroundColor: '#e11d48', borderWidth: 2, borderDash: [5, 5], tension: 0.4, pointRadius: 4, yAxisID: 'y' }, 
+                { 
+                    label: 'Blood Pressure', 
+                    data: chartData.map(r => r.bpSys), // Plot circle at Systolic level
+                    borderColor: '#831843', 
+                    backgroundColor: '#831843', 
+                    borderWidth: 3, 
+                    tension: 0.4, 
+                    pointRadius: 5, 
+                    yAxisID: 'y' 
+                }, 
                 { label: 'Heart Rate', data: chartData.map(r => r.hr), borderColor: '#fb7185', backgroundColor: '#fb7185', borderWidth: 3, tension: 0.4, pointRadius: 5, yAxisID: 'y' },
                 { label: 'Temp (°C)', data: chartData.map(r => r.temp), borderColor: '#d97706', backgroundColor: '#d97706', borderWidth: 3, tension: 0.4, pointRadius: 5, yAxisID: 'yTemp' },
                 { label: 'Resp Rate', data: chartData.map(r => r.resp), borderColor: '#0ea5e9', backgroundColor: '#0ea5e9', borderWidth: 2, tension: 0.4, pointRadius: 4, yAxisID: 'y' }
@@ -465,11 +476,31 @@ function renderChart(p) {
         }, 
         options: { 
             responsive: true, maintainAspectRatio: false, 
-            
-            // FIX: Changed interaction from 'index' to 'nearest' to ONLY show the specific point you hover over!
             interaction: { mode: 'nearest', intersect: true }, 
-            
-            plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: {weight: 'bold'} } }, tooltip: { backgroundColor: 'rgba(30, 27, 75, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14 }, padding: 12, cornerRadius: 8 } }, 
+            plugins: { 
+                legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: {weight: 'bold'} } }, 
+                tooltip: { 
+                    backgroundColor: 'rgba(30, 27, 75, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14 }, padding: 12, cornerRadius: 8,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) label += ': ';
+                            
+                            // If they hover over Blood Pressure, grab BOTH values and combine them!
+                            if (context.dataset.label === 'Blood Pressure') {
+                                let record = chartData[context.dataIndex];
+                                label += record.bpSys + '/' + record.bpDia + ' mmHg';
+                            } else {
+                                label += context.parsed.y;
+                                if(context.dataset.label === 'Heart Rate') label += ' bpm';
+                                if(context.dataset.label === 'Temp (°C)') label += ' °C';
+                                if(context.dataset.label === 'Resp Rate') label += ' br/min';
+                            }
+                            return label;
+                        }
+                    }
+                } 
+            }, 
             scales: { 
                 y: { type: 'linear', display: true, position: 'left', grid: { color: '#f1f5f9', drawBorder: false } }, 
                 yTemp: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, min: 35, max: 42, title: {display: true, text: 'Temperature °C'} },
@@ -478,6 +509,7 @@ function renderChart(p) {
         } 
     });
 }
+// -------------------------------------------------------------
 
 function populateHistoryTable(p) {
     const tbody = document.getElementById('history-tbody'); if(!tbody) return; tbody.innerHTML = '';
