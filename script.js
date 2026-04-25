@@ -41,27 +41,18 @@ function getPatientAlerts(v, r) {
     return alerts;
 }
 
-function isPatientCritical(p) {
-    return getPatientAlerts(p.vitals, p.record).length > 0;
-}
+function isPatientCritical(p) { return getPatientAlerts(p.vitals, p.record).length > 0; }
 
 let isCloudInitialized = false; 
 
 async function login() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-layout').style.display = 'flex';
-    
     updateSyncStatus("Connecting to Server...");
-    
     let success = await downloadFromCloud();
     isCloudInitialized = true; 
-    
     initData(); 
-    
-    if (patients.length > 0 && success) {
-        uploadToCloud();
-    }
-    
+    if (patients.length > 0 && success) uploadToCloud();
     if (success) updateSyncStatus("Live 🟢");
 }
 
@@ -69,9 +60,7 @@ function updateSyncStatus(text) {
     let statusEl = document.getElementById('live-sync-status');
     if (!statusEl) {
         const sidebar = document.querySelector('.sidebar');
-        if(sidebar) {
-            sidebar.insertAdjacentHTML('beforeend', `<div id="live-sync-status" style="position: absolute; bottom: 20px; left: 20px; font-size: 13px; color: #fecdd3; font-weight: 600; display: flex; align-items: center; gap: 8px;"><i class="fas fa-server"></i> <span>${text}</span></div>`);
-        }
+        if(sidebar) sidebar.insertAdjacentHTML('beforeend', `<div id="live-sync-status" style="position: absolute; bottom: 20px; left: 20px; font-size: 13px; color: #fecdd3; font-weight: 600; display: flex; align-items: center; gap: 8px;"><i class="fas fa-server"></i> <span>${text}</span></div>`);
     } else {
         statusEl.querySelector('span').innerText = text;
     }
@@ -90,13 +79,12 @@ function showSection(sectionId, navElement) {
 // --- DATA MANAGEMENT & ROBUST SYNC ---
 // ==========================================
 let patients = [];
-let appointments = [];
 let labs = [];
 let pharmacy = [];
 let currentViewedPatientId = null; 
 let localDataHash = "";
 
-function generateDataHash(pts, appts, lbs, pharm) { return JSON.stringify({ pts, appts, lbs, pharm }); }
+function generateDataHash(pts, lbs, pharm) { return JSON.stringify({ pts, lbs, pharm }); }
 
 function sanitizeData() {
     patients.forEach(p => {
@@ -107,15 +95,11 @@ function sanitizeData() {
 }
 
 function initData() {
-    if (patients.length === 0 && appointments.length === 0) {
-        if (localStorage.getItem('ehr_patients_v9')) {
-            patients = JSON.parse(localStorage.getItem('ehr_patients_v9'));
-        } else {
-            patients = [];
-        }
-        if (localStorage.getItem('ehr_appointments_v9')) { appointments = JSON.parse(localStorage.getItem('ehr_appointments_v9')); } else { appointments = []; }
-        if (localStorage.getItem('ehr_labs_v9')) { labs = JSON.parse(localStorage.getItem('ehr_labs_v9')); } else { labs = []; }
-        if (localStorage.getItem('ehr_pharmacy_v9')) { pharmacy = JSON.parse(localStorage.getItem('ehr_pharmacy_v9')); } else { pharmacy = []; }
+    if (patients.length === 0) {
+        if (localStorage.getItem('ehr_patients_v10')) patients = JSON.parse(localStorage.getItem('ehr_patients_v10'));
+        else patients = [];
+        if (localStorage.getItem('ehr_labs_v10')) labs = JSON.parse(localStorage.getItem('ehr_labs_v10')); else labs = [];
+        if (localStorage.getItem('ehr_pharmacy_v10')) pharmacy = JSON.parse(localStorage.getItem('ehr_pharmacy_v10')); else pharmacy = [];
     }
     saveData(true); 
 }
@@ -124,33 +108,30 @@ function refreshUI() {
     sanitizeData();
     try { updateDashboards(); } catch(e){}
     try { populateTable(); } catch(e){}
-    try { populateAppointments(); } catch(e){}
     try { populateLabs(); } catch(e){}
     try { populatePharmacy(); } catch(e){}
 }
 
 function saveData(skipUpload = false) {
     sanitizeData();
-    localStorage.setItem('ehr_patients_v9', JSON.stringify(patients));
-    localStorage.setItem('ehr_appointments_v9', JSON.stringify(appointments));
-    localStorage.setItem('ehr_labs_v9', JSON.stringify(labs));
-    localStorage.setItem('ehr_pharmacy_v9', JSON.stringify(pharmacy));
-    localDataHash = generateDataHash(patients, appointments, labs, pharmacy);
+    localStorage.setItem('ehr_patients_v10', JSON.stringify(patients));
+    localStorage.setItem('ehr_labs_v10', JSON.stringify(labs));
+    localStorage.setItem('ehr_pharmacy_v10', JSON.stringify(pharmacy));
+    localDataHash = generateDataHash(patients, labs, pharmacy);
     refreshUI();
     if(!skipUpload) uploadToCloud();
 }
 
 function updateDashboards() {
     document.getElementById('dash-patient-count').innerText = patients.length;
-    document.getElementById('dash-appt-count').innerText = appointments.length;
     document.getElementById('dash-lab-count').innerText = labs.length;
     if(document.getElementById('dash-rx-count')) document.getElementById('dash-rx-count').innerText = pharmacy.length;
-    let pendingAppts = appointments.filter(a => a.status === 'pending').length;
+    
     let pendingLabs = labs.filter(l => l.status === 'pending').length;
     let criticalPatients = patients.filter(p => isPatientCritical(p)).length;
     const badge = document.getElementById('notification-badge');
     if (badge) {
-        if (pendingAppts > 0 || pendingLabs > 0 || criticalPatients > 0) badge.style.display = 'block';
+        if (pendingLabs > 0 || criticalPatients > 0) badge.style.display = 'block';
         else badge.style.display = 'none';
     }
     populateRecentPatientsWidget();
@@ -179,23 +160,12 @@ function showNotifications() {
             `;
         }
     });
-    let pendingAppts = appointments.filter(a => a.status === 'pending');
-    if (pendingAppts.length > 0) {
-        hasNotifs = true;
-        list.innerHTML += `
-            <div class="notif-item clickable" onclick="closeNotificationModal(); showSection('appointments-section', document.querySelectorAll('.nav-links li')[2]);">
-                <div class="notif-icon notif-warning"><i class="far fa-calendar-alt"></i></div>
-                <div class="notif-content" style="flex: 1;">
-                    <h4 style="margin-bottom: 2px;">Pending Appointments</h4>
-                    <p style="font-size: 13px;">${pendingAppts.length} Appointment(s) waiting for confirmation.</p>
-                </div>
-            </div>`;
-    }
+
     let pendingLabs = labs.filter(l => l.status === 'pending');
     if (pendingLabs.length > 0) {
         hasNotifs = true;
         list.innerHTML += `
-            <div class="notif-item clickable" onclick="closeNotificationModal(); showSection('labs-section', document.querySelectorAll('.nav-links li')[3]);">
+            <div class="notif-item clickable" onclick="closeNotificationModal(); showSection('labs-section', document.querySelectorAll('.nav-links li')[2]);">
                 <div class="notif-icon notif-info"><i class="fas fa-vial"></i></div>
                 <div class="notif-content" style="flex: 1;">
                     <h4 style="margin-bottom: 2px;">Pending Lab Results</h4>
@@ -226,7 +196,6 @@ function generateDailyReport() {
     const list = document.getElementById('report-list');
     list.innerHTML = `
         <div class="notif-item"><div class="notif-icon notif-success"><i class="fas fa-users"></i></div><div class="notif-content"><h4>Total Registered Patients</h4><p>${patients.length} active records</p></div></div>
-        <div class="notif-item"><div class="notif-icon notif-warning"><i class="far fa-calendar-check"></i></div><div class="notif-content"><h4>Appointments Handled</h4><p>${appointments.length} scheduled sessions</p></div></div>
         <div class="notif-item"><div class="notif-icon notif-info"><i class="fas fa-microscope"></i></div><div class="notif-content"><h4>Lab Tests Recorded</h4><p>${labs.length} diagnostic tests</p></div></div>
         <div class="notif-item"><div class="notif-icon notif-danger" style="background:#fce7f3; color:#831843; border-color:#fbcfe8;"><i class="fas fa-prescription-bottle-alt"></i></div><div class="notif-content"><h4>Prescriptions Issued</h4><p>${pharmacy.length} medication scripts</p></div></div>
     `;
@@ -340,28 +309,12 @@ function populateTable() {
     });
 }
 
-function openAppointmentModal() { document.getElementById('new-appt-name').value = ''; document.getElementById('new-appt-type').value = 'Checkup'; document.getElementById('add-appointment-modal').style.display = 'flex'; }
-function closeAppointmentModal() { document.getElementById('add-appointment-modal').style.display = 'none'; }
-function saveAppointment(e) {
-    e.preventDefault(); let name = document.getElementById('new-appt-name').value; let type = document.getElementById('new-appt-type').value;
-    appointments.push({ id: Date.now(), name: name, time: 'Pending Schedule', doc: 'Unassigned', type: type, status: 'pending' });
-    saveData(); closeAppointmentModal(); showSection('appointments-section', document.querySelectorAll('.nav-links li')[2]);
-}
-function cycleApptStatus(id) { let appt = appointments.find(a => a.id === id); if(appt.status === 'pending') appt.status = 'scheduled'; else if(appt.status === 'scheduled') appt.status = 'completed'; else if(appt.status === 'completed') appt.status = 'cancelled'; else appt.status = 'pending'; saveData(); }
-async function deleteAppointment(id) { if(confirm("Delete this appointment?")) { await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'appointments', id: id }) }); appointments = appointments.filter(a => a.id !== id); saveData(); } }
-function populateAppointments() {
-    const tbody = document.getElementById('appointments-tbody'); if(!tbody) return; tbody.innerHTML = '';
-    appointments.forEach(app => {
-        tbody.innerHTML += `<tr><td><strong style="color:var(--text-dark);">${app.name}</strong></td><td>${app.time}</td><td>${app.doc}</td><td>${app.type}</td><td><span class="status-badge status-${app.status}">${app.status}</span></td><td class="action-cell"><span class="view-btn" style="background:var(--primary-light); color:var(--primary);" onclick="cycleApptStatus(${app.id})">Update</span> <i class="fas fa-trash delete-icon" onclick="deleteAppointment(${app.id})"></i></td></tr>`;
-    });
-}
-
 function openLabModal() { document.getElementById('new-lab-name').value = ''; document.getElementById('new-lab-test').value = ''; document.getElementById('add-lab-modal').style.display = 'flex'; }
 function closeLabModal() { document.getElementById('add-lab-modal').style.display = 'none'; }
 function saveLab(e) {
     e.preventDefault(); let name = document.getElementById('new-lab-name').value; let test = document.getElementById('new-lab-test').value;
     labs.push({ id: Date.now(), name: name, test: test, date: new Date().toISOString().split('T')[0], status: 'pending' });
-    saveData(); closeLabModal(); showSection('labs-section', document.querySelectorAll('.nav-links li')[3]);
+    saveData(); closeLabModal(); showSection('labs-section', document.querySelectorAll('.nav-links li')[2]);
 }
 function cycleLabStatus(id) { let lab = labs.find(l => l.id === id); if(lab.status === 'pending') lab.status = 'completed'; else if(lab.status === 'completed') lab.status = 'critical'; else lab.status = 'pending'; saveData(); }
 async function deleteLab(id) { if(confirm("Delete this lab record?")) { await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'labs', id: id }) }); labs = labs.filter(l => l.id !== id); saveData(); } }
@@ -377,7 +330,7 @@ function closePharmacyModal() { document.getElementById('add-pharmacy-modal').st
 function savePharmacy(e) {
     e.preventDefault(); let name = document.getElementById('new-pharm-name').value; let med = document.getElementById('new-pharm-med').value;
     pharmacy.push({ id: Date.now(), name: name, meds: med, doc: 'Unassigned', status: 'pending' });
-    saveData(); closePharmacyModal(); showSection('pharmacy-section', document.querySelectorAll('.nav-links li')[4]);
+    saveData(); closePharmacyModal(); showSection('pharmacy-section', document.querySelectorAll('.nav-links li')[3]);
 }
 function cycleMedStatus(id) { let med = pharmacy.find(m => m.id === id); if(med.status === 'pending') med.status = 'dispensed'; else med.status = 'pending'; saveData(); }
 async function deleteMed(id) { if(confirm("Delete this pharmacy order?")) { await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'pharmacy', id: id }) }); pharmacy = pharmacy.filter(m => m.id !== id); saveData(); } }
@@ -453,7 +406,11 @@ function openAddVitalsModal(recordId = null) {
         document.getElementById('v-hr').value = r.hr; document.getElementById('v-temp').value = r.temp; document.getElementById('v-spo2').value = r.spo2;
         document.getElementById('v-resp').value = r.resp; document.getElementById('v-bmi').value = r.bmi;
     } else {
-        document.getElementById('vitals-modal-title').innerText = "Record New Vitals"; document.getElementById('v-id').value = ''; document.getElementById('v-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('vitals-modal-title').innerText = "Record New Vitals"; document.getElementById('v-id').value = ''; 
+        // Generates Local Datetime strictly for input fields
+        let tzoffset = (new Date()).getTimezoneOffset() * 60000;
+        let localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, 16);
+        document.getElementById('v-date').value = localISOTime;
         document.getElementById('v-bpsys').value = p.vitals.bpSys === '-' ? '' : p.vitals.bpSys; document.getElementById('v-bpdia').value = p.vitals.bpDia === '-' ? '' : p.vitals.bpDia;
         document.getElementById('v-hr').value = p.vitals.hr === '-' ? '' : p.vitals.hr; document.getElementById('v-temp').value = p.vitals.temp === '-' ? '' : p.vitals.temp;
         document.getElementById('v-spo2').value = p.vitals.spo2 === '-' ? '' : p.vitals.spo2; document.getElementById('v-resp').value = p.vitals.resp === '-' ? '' : p.vitals.resp;
@@ -492,16 +449,42 @@ function renderChart(p) {
     if(!p.vitalsHistory || p.vitalsHistory.length === 0) return;
     Chart.defaults.font.family = "'Inter', sans-serif"; Chart.defaults.color = '#71717a';
     let chartData = [...p.vitalsHistory].sort((a,b) => new Date(a.date) - new Date(b.date));
-    vitalsChartInstance = new Chart(ctx, { type: 'line', data: { labels: chartData.map(r => r.date), datasets: [ { label: 'Systolic BP', data: chartData.map(r => r.bpSys), borderColor: '#831843', backgroundColor: '#831843', borderWidth: 3, tension: 0.4, pointRadius: 5, pointHoverRadius: 7 }, { label: 'Diastolic BP', data: chartData.map(r => r.bpDia), borderColor: '#e11d48', backgroundColor: '#e11d48', borderWidth: 2, borderDash: [5, 5], tension: 0.4, pointRadius: 4 }, { label: 'Heart Rate', data: chartData.map(r => r.hr), borderColor: '#fb7185', backgroundColor: '#fb7185', borderWidth: 3, tension: 0.4, pointRadius: 5, pointHoverRadius: 7 } ] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: {weight: 'bold'} } }, tooltip: { backgroundColor: 'rgba(30, 27, 75, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14 }, padding: 12, cornerRadius: 8 } }, scales: { y: { grid: { color: '#f1f5f9', drawBorder: false } }, x: { grid: { display: false, drawBorder: false } } } } });
+    
+    // Format Display labels nicely from ISO datetime
+    const formatLabel = (isoStr) => isoStr.replace('T', ' ');
+
+    vitalsChartInstance = new Chart(ctx, { 
+        type: 'line', 
+        data: { 
+            labels: chartData.map(r => formatLabel(r.date)), 
+            datasets: [ 
+                { label: 'Systolic BP', data: chartData.map(r => r.bpSys), borderColor: '#831843', backgroundColor: '#831843', borderWidth: 3, tension: 0.4, pointRadius: 5, yAxisID: 'y' }, 
+                { label: 'Diastolic BP', data: chartData.map(r => r.bpDia), borderColor: '#e11d48', backgroundColor: '#e11d48', borderWidth: 2, borderDash: [5, 5], tension: 0.4, pointRadius: 4, yAxisID: 'y' }, 
+                { label: 'Heart Rate', data: chartData.map(r => r.hr), borderColor: '#fb7185', backgroundColor: '#fb7185', borderWidth: 3, tension: 0.4, pointRadius: 5, yAxisID: 'y' },
+                { label: 'Temp (°C)', data: chartData.map(r => r.temp), borderColor: '#d97706', backgroundColor: '#d97706', borderWidth: 3, tension: 0.4, pointRadius: 5, yAxisID: 'yTemp' },
+                { label: 'Resp Rate', data: chartData.map(r => r.resp), borderColor: '#0ea5e9', backgroundColor: '#0ea5e9', borderWidth: 2, tension: 0.4, pointRadius: 4, yAxisID: 'y' }
+            ] 
+        }, 
+        options: { 
+            responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, 
+            plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: {weight: 'bold'} } }, tooltip: { backgroundColor: 'rgba(30, 27, 75, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14 }, padding: 12, cornerRadius: 8 } }, 
+            scales: { 
+                y: { type: 'linear', display: true, position: 'left', grid: { color: '#f1f5f9', drawBorder: false } }, 
+                yTemp: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, min: 35, max: 42, title: {display: true, text: 'Temperature °C'} },
+                x: { grid: { display: false, drawBorder: false } } 
+            } 
+        } 
+    });
 }
 
 function populateHistoryTable(p) {
     const tbody = document.getElementById('history-tbody'); if(!tbody) return; tbody.innerHTML = '';
-    if(!p.vitalsHistory || p.vitalsHistory.length === 0) { tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-light); font-style: italic;">No vitals recorded yet.</td></tr>`; return; }
+    if(!p.vitalsHistory || p.vitalsHistory.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-light); font-style: italic;">No vitals recorded yet.</td></tr>`; return; }
     let sortedHistory = [...p.vitalsHistory].sort((a,b) => new Date(b.date) - new Date(a.date));
     sortedHistory.forEach((r, index) => {
         let rowStyle = index === 0 ? 'background: var(--primary-light); font-weight: 800;' : '';
-        tbody.innerHTML += `<tr style="${rowStyle}"><td>${r.date}</td><td>${r.bpSys} mmHg</td><td>${r.bpDia} mmHg</td><td>${r.hr} bpm</td><td class="action-cell"><i class="fas fa-edit edit-icon" onclick="openAddVitalsModal(${r.id})" title="Edit"></i> <i class="fas fa-trash delete-icon" onclick="deleteVitalRecord(${r.id})" title="Delete"></i></td></tr>`;
+        let displayDate = r.date.replace('T', ' ');
+        tbody.innerHTML += `<tr style="${rowStyle}"><td>${displayDate}</td><td>${r.bpSys} mmHg</td><td>${r.bpDia} mmHg</td><td>${r.hr} bpm</td><td>${r.temp}°C</td><td class="action-cell"><i class="fas fa-edit edit-icon" onclick="openAddVitalsModal(${r.id})" title="Edit"></i> <i class="fas fa-trash delete-icon" onclick="deleteVitalRecord(${r.id})" title="Delete"></i></td></tr>`;
     });
 }
 
@@ -513,7 +496,7 @@ const CLOUD_API_URL = `/api/data`;
 
 async function uploadToCloud() {
     if (!isCloudInitialized) return; 
-    const payload = { patients, appointments, labs, pharmacy };
+    const payload = { patients, labs, pharmacy };
     try {
         updateSyncStatus("Syncing...");
         const response = await fetch(CLOUD_API_URL, {
@@ -523,24 +506,11 @@ async function uploadToCloud() {
         });
         
         const mergedData = await response.json();
-        
-        // FIX: Tell the local computer to adopt the FULL list from the server instantly so nothing disappears!
         if (mergedData && mergedData.patients) { 
-            patients = mergedData.patients;
-            appointments = mergedData.appointments;
-            labs = mergedData.labs;
-            pharmacy = mergedData.pharmacy;
-            
-            localDataHash = generateDataHash(patients, appointments, labs, pharmacy); 
-            
-            // Instantly redraw the screen to show 1000s of patients perfectly
-            try { updateDashboards(); } catch(e){}
-            try { populateTable(); } catch(e){}
-            try { populateAppointments(); } catch(e){}
-            try { populateLabs(); } catch(e){}
-            try { populatePharmacy(); } catch(e){}
+            patients = mergedData.patients; labs = mergedData.labs; pharmacy = mergedData.pharmacy;
+            localDataHash = generateDataHash(patients, labs, pharmacy); 
+            try { updateDashboards(); } catch(e){} try { populateTable(); } catch(e){} try { populateLabs(); } catch(e){} try { populatePharmacy(); } catch(e){}
         }
-        
         updateSyncStatus("Live 🟢");
     } catch (e) { console.error("Sync Upload Failed", e); updateSyncStatus("Offline 🔴"); }
 }
@@ -552,15 +522,12 @@ async function downloadFromCloud() {
         const cloudData = await response.json();
         if (!cloudData || typeof cloudData !== 'object') return false;
         
-        if (cloudData.patients.length === 0 && cloudData.appointments.length === 0) return true;
+        if (cloudData.patients.length === 0 && cloudData.labs.length === 0) return true;
 
-        let cloudHash = generateDataHash(cloudData.patients || [], cloudData.appointments || [], cloudData.labs || [], cloudData.pharmacy || []);
+        let cloudHash = generateDataHash(cloudData.patients || [], cloudData.labs || [], cloudData.pharmacy || []);
 
-        if (cloudHash !== localDataHash && cloudHash !== generateDataHash([],[],[],[])) {
-            patients = cloudData.patients || [];
-            appointments = cloudData.appointments || [];
-            labs = cloudData.labs || [];
-            pharmacy = cloudData.pharmacy || [];
+        if (cloudHash !== localDataHash && cloudHash !== generateDataHash([],[],[])) {
+            patients = cloudData.patients || []; labs = cloudData.labs || []; pharmacy = cloudData.pharmacy || [];
             localDataHash = cloudHash; saveData(true); 
             if (currentViewedPatientId && document.getElementById('patient-modal').style.display === 'flex') { openModal(currentViewedPatientId); }
         }
