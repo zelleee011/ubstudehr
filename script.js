@@ -419,10 +419,11 @@ function editPatient(id) {
     showSection('new-patient', document.querySelectorAll('.nav-links li')[1]);
 }
 
-function deletePatient(id) {
+async function deletePatient(id) {
     if (confirm("Are you sure you want to delete this patient? This action cannot be undone.")) {
+        // Wait for server to officially kill the patient BEFORE saving locally
+        await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'patients', id: id }) });
         patients = patients.filter(p => p.id !== id);
-        fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'patients', id: id }) });
         saveData();
     }
 }
@@ -481,10 +482,10 @@ function cycleApptStatus(id) {
     else appt.status = 'pending';
     saveData();
 }
-function deleteAppointment(id) {
+async function deleteAppointment(id) {
     if(confirm("Delete this appointment?")) { 
+        await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'appointments', id: id }) });
         appointments = appointments.filter(a => a.id !== id); 
-        fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'appointments', id: id }) });
         saveData(); 
     }
 }
@@ -522,10 +523,10 @@ function cycleLabStatus(id) {
     else lab.status = 'pending';
     saveData();
 }
-function deleteLab(id) {
+async function deleteLab(id) {
     if(confirm("Delete this lab record?")) { 
+        await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'labs', id: id }) });
         labs = labs.filter(l => l.id !== id); 
-        fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'labs', id: id }) });
         saveData(); 
     }
 }
@@ -562,10 +563,10 @@ function cycleMedStatus(id) {
     else med.status = 'pending';
     saveData();
 }
-function deleteMed(id) {
+async function deleteMed(id) {
     if(confirm("Delete this pharmacy order?")) { 
+        await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'pharmacy', id: id }) });
         pharmacy = pharmacy.filter(m => m.id !== id); 
-        fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'pharmacy', id: id }) });
         saveData(); 
     }
 }
@@ -787,14 +788,15 @@ function saveVitals(e) {
     switchTab(activeTabId);
 }
 
-function deleteVitalRecord(recordId) {
+async function deleteVitalRecord(recordId) {
     if(!confirm("Are you sure you want to delete this vital record?")) return;
     
     const p = patients.find(x => x.id === currentViewedPatientId);
     if(!p) return;
 
+    await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'vital', id: recordId, patientId: currentViewedPatientId }) });
+    
     p.vitalsHistory = p.vitalsHistory.filter(v => v.id != recordId);
-    fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ type: 'vital', id: recordId, patientId: currentViewedPatientId }) });
     
     if (p.vitalsHistory.length > 0) {
         p.vitalsHistory.sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -886,7 +888,7 @@ async function uploadToCloud() {
     const payload = { patients, appointments, labs, pharmacy };
     try {
         updateSyncStatus("Syncing...");
-        await fetch(CLOUD_API_URL, {
+        const response = await fetch(CLOUD_API_URL, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -894,6 +896,13 @@ async function uploadToCloud() {
             },
             body: JSON.stringify(payload)
         });
+        
+        // Stabilize browser hash by adopting exact server format instantly
+        const mergedData = await response.json();
+        if (mergedData && mergedData.patients) {
+            localDataHash = generateDataHash(mergedData.patients, mergedData.appointments, mergedData.labs, mergedData.pharmacy);
+        }
+        
         updateSyncStatus("Live 🟢");
     } catch (e) {
         console.error("Sync Upload Failed", e);
@@ -920,6 +929,7 @@ async function downloadFromCloud() {
             labs = cloudData.labs || [];
             pharmacy = cloudData.pharmacy || [];
             
+            localDataHash = cloudHash; 
             saveData(true); 
             
             if (currentViewedPatientId && document.getElementById('patient-modal').style.display === 'flex') {
